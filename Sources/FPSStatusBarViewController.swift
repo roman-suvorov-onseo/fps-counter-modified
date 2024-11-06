@@ -47,17 +47,56 @@ class FPSStatusBarViewController: UIViewController {
     // MARK: - View Lifecycle and Events
 
     override func loadView() {
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        let ultraSmall = UIScreen.main.bounds.size.width <= 320
+        let appWindow = UIApplication.shared.keyWindow!
+        let maxWindowSide = max(appWindow.frame.width, appWindow.frame.height)
+        let minWindowSide = min(appWindow.frame.width, appWindow.frame.height)
+        let screenRatio = maxWindowSide / minWindowSide
+        let hasNotch = screenRatio > 16/9 + 0.3 // 0.3 here is delta for not all screens are pure 16/9
+
         self.view = UIView(frame: CGRect(x: 0.0, y: 0.0, width: 100.0, height: 100.0))
 
-        let font = UIFont.boldSystemFont(ofSize: 10.0)
+        let font = UIFont.boldSystemFont(ofSize: {
+          if isPad {
+            12
+          } else {
+            if ultraSmall {
+              8
+            } else {
+              10
+            }
+          }
+        }())
+
         let rect = self.view.bounds.insetBy(dx: 10.0, dy: 0.0)
 
         self.label.frame = CGRect(x: rect.origin.x, y: rect.maxY - font.lineHeight - 1.0, width: rect.width, height: font.lineHeight)
-        self.label.autoresizingMask = [ .flexibleWidth, .flexibleTopMargin ]
         self.label.font = font
-        self.view.addSubview(self.label)
+
+        self.label.textAlignment = .center
+        self.label.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        self.label.translatesAutoresizingMaskIntoConstraints = false
+        self.view.addSubview(label)
+
+        NSLayoutConstraint.activate([
+          label.centerXAnchor.constraint(equalTo: self.view.centerXAnchor),
+          {
+            if isPad {
+              label.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 3)
+            } else {
+              if hasNotch {
+                label.bottomAnchor.constraint(equalTo: self.view.bottomAnchor, constant: 0)
+              } else {
+                label.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 17)
+              }
+            }
+          }()
+        ])
 
         self.fpsCounter.delegate = self
+
+        self.view.backgroundColor = .clear
     }
 
     @objc func updateStatusBarFrame(_ notification: Notification) {
@@ -72,6 +111,7 @@ class FPSStatusBarViewController: UIViewController {
 
     @objc static var statusBarWindow: UIWindow = {
         let window = FPStatusBarWindow()
+        window.backgroundColor = .clear
         window.windowLevel = .statusBar
         window.rootViewController = FPSStatusBarViewController()
         return window
@@ -87,18 +127,15 @@ extension FPSStatusBarViewController: FPSCounterDelegate {
         self.resignKeyWindowIfNeeded()
 
         let milliseconds = 1000 / max(fps, 1)
-        self.label.text = "\(fps) FPS (\(milliseconds) milliseconds per frame)"
+        self.label.text = "\(fps) FPS (\(milliseconds)ms)"
 
         switch fps {
-        case 45...:
-            self.view.backgroundColor = .green
-            self.label.textColor = .black
-        case 35...:
-            self.view.backgroundColor = .orange
-            self.label.textColor = .white
+        case 50...:
+            self.label.textColor = .green
+        case 30...:
+            self.label.textColor = .orange
         default:
-            self.view.backgroundColor = .red
-            self.label.textColor = .white
+            self.label.textColor = .red
         }
     }
 
